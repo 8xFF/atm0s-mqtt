@@ -5,7 +5,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use tokio::sync::{mpsc::UnboundedReceiver, oneshot};
 
 use super::{
-    webhook_types::{AuthenticateRequest, AuthenticateResponse, AuthorizeRequest, AuthorizeResponse},
+    webhook_types::{AuthenticateRequest, AuthenticateResponse, AuthorizeRequest, AuthorizeResponse, WebhookEvent},
     WebhookConfig,
 };
 
@@ -19,8 +19,7 @@ pub enum HttpResponse<T> {
 pub enum WebhookJob {
     Authentication(AuthenticateRequest, oneshot::Sender<Result<HttpResponse<AuthenticateResponse>, String>>),
     Authorization(AuthorizeRequest, oneshot::Sender<Result<HttpResponse<AuthorizeResponse>, String>>),
-    Connected,
-    Disconnected,
+    Event(WebhookEvent),
 }
 
 pub struct Worker {
@@ -46,8 +45,15 @@ impl Worker {
                 let res = post_http(endpoint, authorize_request).await;
                 sender.send(res).expect("should send response");
             }
-            WebhookJob::Connected => todo!(),
-            WebhookJob::Disconnected => todo!(),
+            WebhookJob::Event(event) => {
+                let endpoint = self.cfg.event_endpoint.as_ref().expect("should have event endpoint");
+                let client = reqwest::Client::new();
+                if let Err(e) = client.post(endpoint).json(&event).send().await {
+                    log::error!("failed to send event: {e}");
+                } else {
+                    log::info!("event sent");
+                }
+            }
         }
         Ok(())
     }

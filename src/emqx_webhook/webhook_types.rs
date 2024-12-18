@@ -61,3 +61,41 @@ pub struct AuthorizeRequest {
 pub struct AuthorizeResponse {
     pub result: ValidateResult,
 }
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "action", rename_all = "snake_case")]
+pub enum WebhookEvent {
+    ClientConnected {
+        clientid: String,
+        username: Option<String>,
+        ipaddress: String,
+        proto_ver: u8,
+        keepalive: u16,
+        connected_at: u64,
+        conn_ack: u8,
+    },
+    ClientDisconnected {
+        clientid: String,
+        username: Option<String>,
+        reason: String,
+    },
+    ClientSubscribe {
+        clientid: String,
+        username: Option<String>,
+        topic: String,
+    },
+    ClientUnsubscribe {
+        clientid: String,
+        username: Option<String>,
+        topic: String,
+    },
+    MessagePublish {
+        from_client_id: String,
+        from_username: Option<String>,
+        topic: String,
+        qos: u8,
+        retain: bool,
+        payload: String,
+        ts: u64,
+    },
+}

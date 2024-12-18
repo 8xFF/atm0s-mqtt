@@ -154,6 +154,10 @@ impl WebHook {
             }
         }
     }
+
+    pub fn send_event(&self, event: webhook_types::WebhookEvent) {
+        self.send_job(WebhookJob::Event(event));
+    }
 }
 
 #[cfg(test)]
