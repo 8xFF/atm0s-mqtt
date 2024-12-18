@@ -2,7 +2,10 @@ use std::net::SocketAddr;
 use thiserror::Error;
 
 use atm0s_small_p2p::P2pService;
-use mqtt::packet::{suback::SubscribeReturnCode, PubackPacket, PublishPacket, SubackPacket, UnsubackPacket};
+use mqtt::{
+    control::ConnectReturnCode,
+    packet::{suback::SubscribeReturnCode, ConnackPacket, PubackPacket, PublishPacket, SubackPacket, UnsubackPacket},
+};
 use tokio::{net::TcpListener, select};
 
 use crate::{
@@ -106,15 +109,15 @@ impl SessionRunner {
                     },
                     session::Output::Connect(connect) => {
                         let client_id = connect.client_identifier().to_string();
-                        let res = self.hook.authenticate(connect).await;
+                        let res = self.hook.authenticate(&connect).await;
                         match res {
-                            Ok(ack) => {
-                                self.session.conn_ack(ack).await?;
+                            Ok(_) => {
+                                self.session.conn_ack(ConnackPacket::new(false, ConnectReturnCode::ConnectionAccepted)).await?;
                                 self.state = SessionState::Working(client_id);
                                 Ok(Some(()))
                             },
-                            Err(ack) => {
-                                self.session.conn_ack(ack).await?;
+                            Err(err) => {
+                                self.session.conn_ack(ConnackPacket::new(false, err)).await?;
                                 Err(Error::State("auth failed"))
                             }
                         }

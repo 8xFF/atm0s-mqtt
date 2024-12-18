@@ -1,19 +1,16 @@
 use std::sync::Arc;
 
-use mqtt::{
-    control::ConnectReturnCode,
-    packet::{ConnackPacket, ConnectPacket},
-};
+use mqtt::{control::ConnectReturnCode, packet::ConnectPacket};
 use tokio::sync::{mpsc::UnboundedSender, oneshot};
 
 pub mod webhook_types;
 mod worker;
 
-use webhook_types::AuthenticateRequest;
+use webhook_types::{AuthenticateRequest, ValidateResult};
 use worker::HttpResponse;
 pub use worker::WebhookJob;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct WebhookConfig {
     pub authentication_endpoint: Option<String>,
     pub authorization_endpoint: Option<String>,
@@ -43,13 +40,13 @@ impl WebHook {
     }
 
     fn send_job(&self, job: WebhookJob) {
-        let index = self.workers.len() % rand::random::<usize>();
+        let index = rand::random::<usize>() % self.workers.len();
         self.workers[index].send(job).expect("should send job");
     }
 
-    pub async fn authenticate(&self, connect: ConnectPacket) -> Result<ConnackPacket, ConnackPacket> {
+    pub async fn authenticate(&self, connect: &ConnectPacket) -> Result<(), ConnectReturnCode> {
         if self.cfg.authentication_endpoint.is_none() {
-            return Ok(ConnackPacket::new(false, ConnectReturnCode::ConnectionAccepted));
+            return Ok(());
         }
 
         let (tx, rx) = oneshot::channel();
@@ -64,26 +61,26 @@ impl WebHook {
 
         match rx.await {
             Ok(Ok(HttpResponse::Http200(res))) => match res.result {
-                webhook_types::ValidateResult::Allow => {
+                ValidateResult::Allow => {
                     log::info!("auth Allow");
-                    Ok(ConnackPacket::new(false, ConnectReturnCode::ConnectionAccepted))
+                    Ok(())
                 }
-                webhook_types::ValidateResult::Deny => {
+                ValidateResult::Deny => {
                     log::warn!("auth Deny");
-                    Err(ConnackPacket::new(false, ConnectReturnCode::BadUserNameOrPassword))
+                    Err(ConnectReturnCode::BadUserNameOrPassword)
                 }
             },
             Ok(Ok(HttpResponse::Http204)) => {
                 log::info!("auth Allow");
-                Ok(ConnackPacket::new(false, ConnectReturnCode::ConnectionAccepted))
+                Ok(())
             }
             Ok(Err(err)) => {
                 log::error!("auth error {err}");
-                Err(ConnackPacket::new(false, ConnectReturnCode::ServiceUnavailable))
+                Err(ConnectReturnCode::ServiceUnavailable)
             }
             Err(err) => {
                 log::error!("auth error: {err}");
-                Err(ConnackPacket::new(false, ConnectReturnCode::ServiceUnavailable))
+                Err(ConnectReturnCode::ServiceUnavailable)
             }
         }
     }
@@ -156,5 +153,89 @@ impl WebHook {
                 Err(())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use httpmock::MockServer;
+    use mqtt::{control::ConnectReturnCode, packet::ConnectPacket};
+
+    #[test_log::test(tokio::test)]
+    async fn authenticate_200_ok() {
+        let server = MockServer::start();
+        let authentication_mook = server.mock(|when, then| {
+            when.method("POST").path("/auth");
+            then.status(200).header("Content-Type", "application/json").body(r#"{"result": "allow"}"#);
+        });
+
+        let webhook = super::WebHook::new(
+            1,
+            super::WebhookConfig {
+                authentication_endpoint: Some(server.url("/auth")),
+                ..Default::default()
+            },
+        );
+
+        let mut req = ConnectPacket::new("c1");
+        req.set_user_name(Some("u1".to_string()));
+        req.set_password(Some("p1".to_string()));
+
+        let res = webhook.authenticate(&req).await;
+        assert_eq!(res, Ok(()));
+
+        authentication_mook.assert();
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn authenticate_200_reject() {
+        let server = MockServer::start();
+        let authentication_mook = server.mock(|when, then| {
+            when.method("POST").path("/auth");
+            then.status(200).header("Content-Type", "application/json").body(r#"{"result": "deny"}"#);
+        });
+
+        let webhook = super::WebHook::new(
+            1,
+            super::WebhookConfig {
+                authentication_endpoint: Some(server.url("/auth")),
+                ..Default::default()
+            },
+        );
+
+        let mut req = ConnectPacket::new("c1");
+        req.set_user_name(Some("u1".to_string()));
+        req.set_password(Some("p1".to_string()));
+
+        let res = webhook.authenticate(&req).await;
+        assert_eq!(res, Err(ConnectReturnCode::BadUserNameOrPassword));
+
+        authentication_mook.assert();
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn authenticate_204_ok() {
+        let server = MockServer::start();
+        let authentication_mook = server.mock(|when, then| {
+            when.method("POST").path("/auth");
+            then.status(204);
+        });
+
+        let webhook = super::WebHook::new(
+            1,
+            super::WebhookConfig {
+                authentication_endpoint: Some(server.url("/auth")),
+                ..Default::default()
+            },
+        );
+
+        let mut req = ConnectPacket::new("c1");
+        req.set_user_name(Some("u1".to_string()));
+        req.set_password(Some("p1".to_string()));
+
+        let res = webhook.authenticate(&req).await;
+        assert_eq!(res, Ok(()));
+
+        authentication_mook.assert();
     }
 }

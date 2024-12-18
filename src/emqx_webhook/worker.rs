@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use reqwest::StatusCode;
 use serde::{de::DeserializeOwned, Serialize};
 use tokio::sync::{mpsc::UnboundedReceiver, oneshot};

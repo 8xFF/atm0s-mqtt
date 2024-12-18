@@ -10,10 +10,9 @@ pub struct AuthenticateRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ValidateResult {
-    #[serde(rename = "allow")]
     Allow,
-    #[serde(rename = "deny")]
     Deny,
 }
 
