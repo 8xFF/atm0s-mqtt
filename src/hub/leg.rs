@@ -1,6 +1,6 @@
 use std::ops::AddAssign;
 
-use mqtt::packet::{PublishPacket, SubscribePacket, UnsubscribePacket};
+use mqtt::packet::PublishPacket;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Default)]
@@ -14,8 +14,8 @@ impl AddAssign<u64> for LegId {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum LegControl {
-    Subscribe(SubscribePacket),
-    Unsubscribe(UnsubscribePacket),
+    Subscribe(String),
+    Unsubscribe(String),
     Publish(PublishPacket),
 }
 
@@ -39,12 +39,12 @@ impl Leg {
         self.id
     }
 
-    pub async fn subscribe(&mut self, sub: SubscribePacket) {
-        self.control_tx.send((self.id, LegControl::Subscribe(sub))).expect("should send to main loop");
+    pub async fn subscribe(&mut self, topic: &str) {
+        self.control_tx.send((self.id, LegControl::Subscribe(topic.to_owned()))).expect("should send to main loop");
     }
 
-    pub async fn unsubscribe(&mut self, unsub: UnsubscribePacket) {
-        self.control_tx.send((self.id, LegControl::Unsubscribe(unsub))).expect("should send to main loop");
+    pub async fn unsubscribe(&mut self, topic: &str) {
+        self.control_tx.send((self.id, LegControl::Unsubscribe(topic.to_owned()))).expect("should send to main loop");
     }
 
     pub async fn publish(&mut self, pkt: PublishPacket) -> Option<()> {

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Deref};
+use std::collections::HashMap;
 
 use atm0s_small_p2p::{
     replicate_kv_service::{KvEvent, ReplicatedKvService},
@@ -87,28 +87,20 @@ impl Hub {
             event = self.control_rx.recv() => {
                 let (leg_id, control) = event?;
                 match control {
-                    LegControl::Subscribe(sub) => {
-                        for (topic, _qos) in sub.subscribes() {
-                            let topic_str: &str = topic.deref();
-                            log::info!("[Hub] local leg {leg_id:?} subscribe {topic_str}");
-                            if self.local_registry.subscribe(topic_str, leg_id) {
-                                // first time we subscribe to this topic then need to add to replicated kv
-                                self.replicated_kv_service.set(topic_str.to_owned(), true);
-                            }
+                    LegControl::Subscribe(topic) => {
+                        log::info!("[Hub] local leg {leg_id:?} subscribe {topic}");
+                        if self.local_registry.subscribe(&topic, leg_id) {
+                            // first time we subscribe to this topic then need to add to replicated kv
+                            self.replicated_kv_service.set(topic, true);
                         }
-
                         Some(())
                     },
-                    LegControl::Unsubscribe(unsub) => {
-                        for topic in unsub.subscribes() {
-                            let topic_str: &str = topic.deref();
-                            log::info!("[Hub] local leg {leg_id:?} unsubscribe {topic_str}");
-                            if self.local_registry.unsubscribe(topic_str, leg_id) {
-                                // first time we subscribe to this topic then need to add to replicated kv
-                                self.replicated_kv_service.del(topic_str.to_owned());
-                            }
+                    LegControl::Unsubscribe(topic) => {
+                        log::info!("[Hub] local leg {leg_id:?} unsubscribe {topic}");
+                        if self.local_registry.unsubscribe(&topic, leg_id) {
+                            // first time we subscribe to this topic then need to add to replicated kv
+                            self.replicated_kv_service.del(topic.to_owned());
                         }
-
                         Some(())
                     },
                     LegControl::Publish(pkt) => {
