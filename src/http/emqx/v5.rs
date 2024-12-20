@@ -106,6 +106,7 @@ impl EmqxV5 {
             Ok(()) => Ok(PublishResponse::Ok(Json(PublishSuccess { id: "OK".to_string() }))),
             Err(e) => match e {
                 HubPublishError::NoSubscribers => Err(PublishError::NotFound(Json(PublishFailure::new(16, "no_matching_subscribers")))),
+                HubPublishError::TopicInvalid => Err(PublishError::BadRequest(Json(PublishFailure::new(17, "invalid topic")))),
             },
         }
     }
