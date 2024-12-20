@@ -18,10 +18,7 @@ pub enum ValidateResult {
 
 impl ValidateResult {
     pub fn is_allow(&self) -> bool {
-        match self {
-            ValidateResult::Allow => true,
-            _ => false,
-        }
+        matches!(self, ValidateResult::Allow)
     }
 }
 

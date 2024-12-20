@@ -65,7 +65,7 @@ impl Hub {
         for leg_id in self.local_registry.get(&topic).into_iter().flatten() {
             has_subscribers = true;
             log::info!("[Hub] publish {topic_str} to local leg {leg_id:?}");
-            let event_tx = self.legs.get(&leg_id).expect("should have leg with leg_id");
+            let event_tx = self.legs.get(leg_id).expect("should have leg with leg_id");
             let _ = event_tx.send(LegOutput::Publish(pkt.clone()));
         }
         let dests = self.remote_registry.get(&topic).into_iter().flatten().cloned().collect::<Vec<_>>();
@@ -120,10 +120,10 @@ impl Hub {
                 P2pServiceEvent::Unicast(peer_id, vec) => {
                     if let Ok(pkt) = PublishPacket::decode(&mut vec.as_slice()) {
                         let topic_str: &str = pkt.topic_name();
-                        if let Ok(topic) = Topic::from_str(&topic_str) {
+                        if let Ok(topic) = Topic::from_str(topic_str) {
                             for leg_id in self.local_registry.get(&topic).into_iter().flatten() {
                                 log::info!("[Hub] forward {topic_str} to local leg {leg_id:?} from remote {peer_id:?}");
-                                let event_tx = self.legs.get(&leg_id).expect("should have leg with leg_id");
+                                let event_tx = self.legs.get(leg_id).expect("should have leg with leg_id");
                                 let _ = event_tx.send(LegOutput::Publish(pkt.clone()));
                             }
                         }

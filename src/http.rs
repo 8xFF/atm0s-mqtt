@@ -29,7 +29,7 @@ pub fn run_http(listen: SocketAddr) -> Receiver<HttpCommand> {
     let (cmd_tx, cmd_rx) = channel(10);
 
     tokio::spawn(async move {
-        let emqx_route = emqx::route(cmd_tx).with(Cors::new()).with(Tracing::default());
+        let emqx_route = emqx::route(cmd_tx).with(Cors::new()).with(Tracing);
         Server::new(TcpListener::bind(listen)).run(Route::new().nest("/api", emqx_route)).await
     });
 

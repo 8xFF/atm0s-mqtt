@@ -117,7 +117,7 @@ where
     pub fn subscribe(&mut self, parts: &[TopicPart], target: T) -> Option<SubscribeResult> {
         if let Some(next) = parts.first() {
             if let Some(child) = self.children.get_mut(next) {
-                return child.subscribe(&parts[1..], target);
+                child.subscribe(&parts[1..], target)
             } else {
                 let mut node = Box::new(RegistryNode::default());
                 node.subscribe(&parts[1..], target);
@@ -125,7 +125,7 @@ where
                 Some(SubscribeResult::NodeAdded)
             }
         } else {
-            self.targets.insert(target).then(|| SubscribeResult::TargetAdded)
+            self.targets.insert(target).then_some(SubscribeResult::TargetAdded)
         }
     }
 
@@ -143,7 +143,7 @@ where
                 None
             }
         } else {
-            self.targets.remove(&target).then(|| UnsubscribeResult::TargetRemoved)
+            self.targets.remove(&target).then_some(UnsubscribeResult::TargetRemoved)
         }
     }
 
@@ -152,15 +152,15 @@ where
             match next {
                 TopicPart::SingleWildcard | TopicPart::MultiWildcard => None,
                 TopicPart::Value(_) => {
-                    let exact_child = self.children.get(next).map(|c| c.get(&parts[1..], dest)).flatten();
-                    let single_wildcard_child = self.children.get(&TopicPart::SingleWildcard).map(|c| c.get(&parts[1..], dest)).flatten();
-                    let multi_wildcard_child = self.children.get(&TopicPart::MultiWildcard).map(|c| c.get(&[], dest)).flatten();
+                    let exact_child = self.children.get(next).and_then(|c| c.get(&parts[1..], dest));
+                    let single_wildcard_child = self.children.get(&TopicPart::SingleWildcard).and_then(|c| c.get(&parts[1..], dest));
+                    let multi_wildcard_child = self.children.get(&TopicPart::MultiWildcard).and_then(|c| c.get(&[], dest));
 
                     exact_child.or(single_wildcard_child).or(multi_wildcard_child)
                 }
             }
         } else {
-            dest.extend(self.targets.iter().map(|t| t.clone()));
+            dest.extend(self.targets.iter().cloned());
             Some(())
         }
     }
@@ -218,7 +218,7 @@ mod tests {
         assert_eq!(registry.unsubscribe(&Topic::from_str("a").expect("should parse topic"), 1), None);
         assert_eq!(get_vec(&mut registry, "a"), None);
 
-        assert_eq!(registry.is_empty(), true);
+        assert!(registry.is_empty());
     }
 
     #[test]
@@ -238,7 +238,7 @@ mod tests {
         assert_eq!(registry.unsubscribe(&Topic::from_str("a/b/c").expect("should parse topic"), 3), Some(UnsubscribeResult::NodeRemoved));
         assert_eq!(get_vec(&mut registry, "a/b/c"), None);
 
-        assert_eq!(registry.is_empty(), true);
+        assert!(registry.is_empty());
     }
 
     #[test]
@@ -256,7 +256,7 @@ mod tests {
         assert_eq!(get_vec(&mut registry, "a/a/c"), None);
         assert_eq!(get_vec(&mut registry, "b/a/c"), None);
 
-        assert_eq!(registry.is_empty(), true);
+        assert!(registry.is_empty());
     }
 
     #[test]
@@ -274,7 +274,7 @@ mod tests {
         assert_eq!(get_vec(&mut registry, "w/b/c"), None);
         assert_eq!(get_vec(&mut registry, "w/f/c"), None);
 
-        assert_eq!(registry.is_empty(), true);
+        assert!(registry.is_empty());
     }
 
     #[test]
@@ -292,7 +292,7 @@ mod tests {
         assert_eq!(get_vec(&mut registry, "a/b/w"), None);
         assert_eq!(get_vec(&mut registry, "a/b/w/z"), None);
 
-        assert_eq!(registry.is_empty(), true);
+        assert!(registry.is_empty());
     }
 
     #[test]
@@ -311,7 +311,7 @@ mod tests {
         assert_eq!(get_vec(&mut registry, "a/b/c/d"), None);
         assert_eq!(get_vec(&mut registry, "a/b/c/d/e"), None);
 
-        assert_eq!(registry.is_empty(), true);
+        assert!(registry.is_empty());
     }
 
     #[test]
@@ -330,6 +330,6 @@ mod tests {
         assert_eq!(get_vec(&mut registry, "a/b/c/d"), None);
         assert_eq!(get_vec(&mut registry, "a/c/c/d/e"), None);
 
-        assert_eq!(registry.is_empty(), true);
+        assert!(registry.is_empty());
     }
 }
